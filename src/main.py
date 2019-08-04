@@ -82,3 +82,11 @@ params = {'num_leaves': 256,
          }
 result_dict_lgb = train_model_classification(X=X, X_test=X_test, y=y, params=params, folds=folds, model_type='lgb', eval_metric='auc', plot_feature_importance=True,
                                                       verbose=500, early_stopping_rounds=200, n_estimators=5000, averaging='usual', n_jobs=-1)
+
+
+# results blend 
+
+test = test.sort_values('TransactionDT')
+test['prediction_lgb'] = result_dict_lgb['prediction'] + result_dict_xgb['prediction']
+sub['isFraud'] = pd.merge(sub, test, on='TransactionID')['prediction']
+sub.to_csv('submission.csv', index=False)
