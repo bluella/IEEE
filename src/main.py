@@ -12,23 +12,25 @@ from sklearn.model_selection import TimeSeriesSplit, KFold
 from src.lib import helpers as hlp
 
 
-
 # %%
 # Load datasets
 # print(f'{hlp.DATASETS_ORIGINAL_PATH}train_identity.csv')
 train_identity = pd.read_csv(f'{hlp.DATASETS_ORIGINAL_PATH}train_identity.csv')
-train_transaction = pd.read_csv(f'{hlp.DATASETS_ORIGINAL_PATH}train_transaction.csv')
+train_transaction = pd.read_csv(
+    f'{hlp.DATASETS_ORIGINAL_PATH}train_transaction.csv')
 test_identity = pd.read_csv(f'{hlp.DATASETS_ORIGINAL_PATH}test_identity.csv')
-test_transaction = pd.read_csv(f'{hlp.DATASETS_ORIGINAL_PATH}test_transaction.csv')
+test_transaction = pd.read_csv(
+    f'{hlp.DATASETS_ORIGINAL_PATH}test_transaction.csv')
 sub = pd.read_csv(f'{hlp.DATASETS_PRED_PATH}sample_submission.csv')
 # let's combine the data and work with the whole dataset
 
 # %%
 # Merging transactions and identity
-train = pd.merge(train_transaction, train_identity, on='TransactionID', how='left')
-test = pd.merge(test_transaction, test_identity, on='TransactionID', how='left')
-train = hlp.reduce_mem_usage(train)
-test = hlp.reduce_mem_usage(test)
+train = pd.merge(train_transaction, train_identity,
+                 on='TransactionID', how='left')
+test = pd.merge(test_transaction, test_identity,
+                on='TransactionID', how='left')
+
 
 # %%
 # print datasets info
@@ -37,29 +39,33 @@ print(f'Test dataset has {test.shape[0]} rows and {test.shape[1]} columns.')
 
 print(train.head())
 print(test.head())
+# print(hlp.resumetable(train))
 
 # %%
 # delete heavy parts
 del train_identity, train_transaction, test_identity, test_transaction
 
-
-
-
-
+# %%
+# Lets add datetime features
+train = hlp.add_datetime_info(train)
+test = hlp.add_datetime_info(test)
+# train['_Days'].describe()
+# sns.distplot(train['_Days'].dropna())
+# plt.title('Distribution of _Hours variable')
 # %%
 # check specific feature# %%
 
-train['id_11'].value_counts(dropna=False, normalize=True).head()
-sns.distplot(train['id_07'].dropna())
-plt.title('Distribution of id_07 variable')
+# train['id_11'].value_counts(dropna=False, normalize=True).head()
+# sns.distplot(train['id_07'].dropna())
+# plt.title('Distribution of id_07 variable')
 
 # %%
 # compare train and test distributions
 
-sns.distplot(train['TransactionDT'], label='train')
-sns.distplot(test['TransactionDT'], label='test')
-plt.legend()
-plt.title('Distribution of transactiond dates')
+# sns.distplot(train['TransactionDT'], label='train')
+# sns.distplot(test['TransactionDT'], label='test')
+# plt.legend()
+# plt.title('Distribution of transactiond dates')
 
 
 # %%
@@ -67,13 +73,13 @@ plt.title('Distribution of transactiond dates')
 
 one_value_cols = [col for col in train.columns if train[col].nunique() <= 1]
 one_value_cols_test = [col for col in test.columns if test[col].nunique() <= 1]
-many_null_cols = [col for col in train.columns if\
+many_null_cols = [col for col in train.columns if
                   train[col].isnull().sum() / train.shape[0] > 0.9]
-many_null_cols_test = [col for col in test.columns if\
+many_null_cols_test = [col for col in test.columns if
                        test[col].isnull().sum() / test.shape[0] > 0.9]
-big_top_value_cols = [col for col in train.columns if\
+big_top_value_cols = [col for col in train.columns if
                       train[col].value_counts(dropna=False, normalize=True).values[0] > 0.9]
-big_top_value_cols_test = [col for col in test.columns \
+big_top_value_cols_test = [col for col in test.columns
                            if test[col].value_counts(dropna=False, normalize=True).values[0] > 0.9]
 cols_to_drop = list(set(many_null_cols +
                         many_null_cols_test +
@@ -102,28 +108,37 @@ cat_cols = ['id_12', 'id_13', 'id_14', 'id_15', 'id_16', 'id_17',
 for col in cat_cols:
     if col in train.columns:
         le = LabelEncoder()
-        le.fit(list(train[col].astype(str).values) + list(test[col].astype(str).values))
+        le.fit(list(train[col].astype(str).values) +
+               list(test[col].astype(str).values))
         train[col] = le.transform(list(train[col].astype(str).values))
         test[col] = le.transform(list(test[col].astype(str).values))
 
-# %%
-# reduce memory usage
-train = hlp.reduce_mem_usage(train)
-test = hlp.reduce_mem_usage(test)
 
 # %%
 # train preparation
-X = train.sort_values('TransactionDT').drop(['isFraud', 'TransactionDT', 'TransactionID'], axis=1)
+
+
+X = train.sort_values('TransactionDT').drop(
+    ['isFraud', 'TransactionDT', 'TransactionID'], axis=1)
 Y = train.sort_values('TransactionDT')['isFraud']
-X_test = test.sort_values('TransactionDT').drop(['TransactionDT', 'TransactionID'], axis=1)
+X_test = test.sort_values('TransactionDT').drop(
+    ['TransactionDT', 'TransactionID'], axis=1)
 del train
 test = test[["TransactionDT", 'TransactionID']]
 
 # %%
-# train
+# Cleaning infinite values to NaN
+X = hlp.clean_inf_nan(X)
+X_test = hlp.clean_inf_nan(X_test)
+
+# %%
+# train params
 n_fold = 5
 folds = TimeSeriesSplit(n_splits=n_fold)
-folds = KFold(n_splits=5)
+folds = KFold(n_splits=n_fold)
+
+# %%
+# lgb
 params = {'num_leaves': 256,
           'min_child_samples': 79,
           'objective': 'binary',
@@ -143,12 +158,27 @@ params = {'num_leaves': 256,
 
 result_dict_lgb = hlp.train_model_classification(X=X, X_test=X_test, y=Y,
                                                  params=params, folds=folds, model_type='lgb',
-                                                 eval_metric='auc', plot_feature_importance=True,
+                                                 eval_metric='auc', plot_feature_importance=False,
                                                  verbose=500, early_stopping_rounds=200,
-                                                 n_estimators=5000, averaging='usual', n_jobs=-1)
+                                                 n_estimators=6000, averaging='usual', n_jobs=-1)
 
 # %%
-# results blend
+# xgb
+# xgb_params = {'eta': 0.04,
+#               'max_depth': 5,
+#               'subsample': 0.85,
+#               'objective': 'binary:logistic',
+#               'eval_metric': 'auc',
+#               'silent': True,
+#               'nthread': -1,
+#               'tree_method': 'gpu_hist'}
+# result_dict_xgb = hlp.train_model_classification(X=X, X_test=X_test, y=Y,
+#                                                  params=xgb_params, folds=folds, model_type='xgb',
+#                                                  eval_metric='auc', plot_feature_importance=False,
+#                                                  verbose=500, early_stopping_rounds=200,
+#                                                  n_estimators=5000, averaging='usual')
+# %%
+# saving results
 
 test = test.sort_values('TransactionDT')
 test['prediction_lgb'] = result_dict_lgb['prediction']
@@ -157,8 +187,16 @@ sub['isFraud'] = pd.merge(sub, test, on='TransactionID')['prediction_lgb']
 sub.to_csv(f'{hlp.DATASETS_PRED_PATH}submission.csv', index=False)
 
 
+
+
 #%%
-print(sub.shape)
-print(sub.head())
+# blending
+# blend_base = pd.read_csv(f'{hlp.DATASETS_PRED_PATH}submission_TST_09393_CVM_09297.csv')
+# print(blend_base.head())
+# print(blend_base.describe())
+
+# sub['isFraud'] = (sub['isFraud'] + blend_base['isFraud'])/2
+# sub.to_csv(f'{hlp.DATASETS_PRED_PATH}submission.csv', index=False)
+
 
 #%%

@@ -2,7 +2,9 @@
 """Universal kernel blocks"""
 import os
 import time
+import datetime as dt
 import numpy as np
+import scipy as ss
 import pandas as pd
 
 import matplotlib.pyplot as plt
@@ -33,6 +35,7 @@ DATASETS_PRED_PATH = DATASETS_PATH + 'predictions/'
 def reduce_mem_usage(df, verbose=True):
     """
     Reduce memory costs of df via changing numeric column types to more efficient ones
+    Takes a lot of time, try only once
     """
     numerics = ['int16', 'int32', 'int64', 'float16', 'float32', 'float64']
     start_mem = df.memory_usage().sum() / 1024**2
@@ -98,13 +101,89 @@ def group_mean_log_mae(y_true, y_pred, types, floor=1e-9):
     return np.log(maes.map(lambda x: max(x, floor))).mean()
 
 ###################################################################################################
-# preprocessing
+# descibe & visualise
 ###################################################################################################
 
+def resumetable(df):
+    """
+    Table about table
+    """
+    print(f"Dataset Shape: {df.shape}")
+    summary = pd.DataFrame(df.dtypes, columns=['dtypes'])
+    summary = summary.reset_index()
+    summary['Name'] = summary['index']
+    summary = summary[['Name', 'dtypes']]
+    summary['Missing'] = df.isnull().sum().values
+    summary['Uniques'] = df.nunique().values
+    summary['First Value'] = df.loc[0].values
+    summary['Second Value'] = df.loc[1].values
+    summary['Third Value'] = df.loc[2].values
 
+    for name in summary['Name'].value_counts().index:
+        summary.loc[summary['Name'] == name, 'Entropy'] = \
+            round(ss.stats.entropy(df[name].value_counts(normalize=True), base=2), 2)
+
+    return summary
+
+
+###################################################################################################
+# preprocessing
+###################################################################################################
 def clean_inf_nan(df):
     """nan instead of inf"""
     return df.replace([np.inf, -np.inf], np.nan)
+
+def add_datetime_info(df_trans, ts_column='TransactionDT', start_date=dt.datetime(2017, 12, 1)):
+    """adds _Weekdays, _Hours, _Days columns to df
+
+    Args:
+        df_trans (DataFrame):
+            With timestamp column.
+        ts_column (string):
+            Column with second.
+        start_date (datetime):
+            Starting point if ts_column has no full timestamp
+
+    Returns:
+        df_trans (DataFrame):
+            With 4 additional columns
+    """
+
+    if start_date:
+        df_trans["_Date"] = df_trans[ts_column].apply(lambda x:\
+            (start_date + dt.timedelta(seconds=x)))
+    else:
+        df_trans["_Date"] = df_trans[ts_column].apply(dt.datetime.fromtimestamp)
+    df_trans['_Weekdays'] = df_trans['_Date'].dt.dayofweek
+    df_trans['_Hours'] = df_trans['_Date'].dt.hour
+    df_trans['_Days'] = df_trans['_Date'].dt.day
+    return df_trans
+
+def corret_card_id(x):
+    """Just replacement of characters"""
+    x = x.replace('.0', '')
+    x = x.replace('-999', 'nan')
+
+    return x
+
+def corret_card_id_df(df):
+    """Apply corret_card_id to df columns"""
+    cards_cols = ['card1', 'card2', 'card3', 'card5']
+    for card in cards_cols:
+        if '1' in card:
+            df['Card_ID'] = df[card].map(str)
+        else:
+            df['Card_ID'] += ' ' + df[card].map(str)
+
+    # sort train data by Card_ID and then by transaction date
+    df = df.sort_values(['Card_ID', 'Date'], ascending=[True, True])
+
+    # small correction of the Card_ID
+    df['Card_ID'] = df['Card_ID'].apply(corret_card_id)
+
+    # set indexes
+    # df= df.set_index(['Card_ID', 'Date'])
+    return df
 
 ###################################################################################################
 # training model
