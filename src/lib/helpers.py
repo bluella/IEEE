@@ -21,7 +21,8 @@ from numba import jit
 # constants
 ###################################################################################################
 
-PROJECT_DIR = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+PROJECT_DIR = os.path.dirname(os.path.dirname(
+    os.path.dirname(os.path.abspath(__file__))))
 SRC_PATH = PROJECT_DIR + '/src/'
 DATASETS_PATH = PROJECT_DIR + '/datasets/'
 DATASETS_ORIGINAL_PATH = DATASETS_PATH + 'original/'
@@ -31,6 +32,7 @@ DATASETS_PRED_PATH = DATASETS_PATH + 'predictions/'
 ###################################################################################################
 # resources optimization
 ###################################################################################################
+
 
 def reduce_mem_usage(df, verbose=True):
     """
@@ -54,12 +56,15 @@ def reduce_mem_usage(df, verbose=True):
                 elif c_min > np.iinfo(np.int64).min and c_max < np.iinfo(np.int64).max:
                     df[col] = df[col].astype(np.int64)
             else:
-                c_prec = df[col].apply(lambda x: np.finfo(x).precision).max()
-                if (c_min > np.finfo(np.float32).min and c_max < np.finfo(np.float32).max and
-                        c_prec == np.finfo(np.float32).precision):
+                if c_min > np.finfo(np.float16).min and c_max < np.finfo(np.float16).max:
+                    df[col] = df[col].astype(np.float16)
+                elif c_min > np.finfo(np.float32).min and c_max < np.finfo(np.float32).max:
                     df[col] = df[col].astype(np.float32)
                 else:
                     df[col] = df[col].astype(np.float64)
+        else:
+            df[col] = df[col].astype('category')
+
     end_mem = df.memory_usage().sum() / 1024**2
     if verbose:
         print('Mem. usage decreased to {:5.2f} Mb ({:.1f}% reduction)'.format(
@@ -104,6 +109,7 @@ def group_mean_log_mae(y_true, y_pred, types, floor=1e-9):
 # descibe & visualise
 ###################################################################################################
 
+
 def resumetable(df):
     """
     Table about table
@@ -121,7 +127,8 @@ def resumetable(df):
 
     for name in summary['Name'].value_counts().index:
         summary.loc[summary['Name'] == name, 'Entropy'] = \
-            round(ss.stats.entropy(df[name].value_counts(normalize=True), base=2), 2)
+            round(ss.stats.entropy(
+                df[name].value_counts(normalize=True), base=2), 2)
 
     return summary
 
@@ -132,6 +139,7 @@ def resumetable(df):
 def clean_inf_nan(df):
     """nan instead of inf"""
     return df.replace([np.inf, -np.inf], np.nan)
+
 
 def add_datetime_info(df_trans, ts_column='TransactionDT', start_date=dt.datetime(2017, 12, 1)):
     """adds _Weekdays, _Hours, _Days columns to df
@@ -150,23 +158,31 @@ def add_datetime_info(df_trans, ts_column='TransactionDT', start_date=dt.datetim
     """
 
     if start_date:
-        df_trans["_Date"] = df_trans[ts_column].apply(lambda x:\
-            (start_date + dt.timedelta(seconds=x)))
+        df_trans["_Date"] = df_trans[ts_column].apply(lambda x:
+                                                      (start_date + dt.timedelta(seconds=x)))
     else:
-        df_trans["_Date"] = df_trans[ts_column].apply(dt.datetime.fromtimestamp)
+        df_trans["_Date"] = df_trans[ts_column].apply(
+            dt.datetime.fromtimestamp)
     df_trans['_Weekdays'] = df_trans['_Date'].dt.dayofweek
     df_trans['_Hours'] = df_trans['_Date'].dt.hour
     df_trans['_Days'] = df_trans['_Date'].dt.day
+    df_trans.drop(['_Date'], axis=1, inplace=True)
+
     return df_trans
+
 
 def corret_card_id(x):
     """Just replacement of characters"""
+
     x = x.replace('.0', '')
-    x = x.replace('-999', 'nan')
+    x = x.replace('-999', 'NNNN')
+    while len(x) < 4:
+        x += 'N'
 
     return x
 
-def corret_card_id_df(df):
+
+def add_card_id(df):
     """Apply corret_card_id to df columns"""
     cards_cols = ['card1', 'card2', 'card3', 'card5']
     for card in cards_cols:
@@ -175,15 +191,62 @@ def corret_card_id_df(df):
         else:
             df['Card_ID'] += ' ' + df[card].map(str)
 
-    # sort train data by Card_ID and then by transaction date
-    df = df.sort_values(['Card_ID', 'Date'], ascending=[True, True])
-
-    # small correction of the Card_ID
-    df['Card_ID'] = df['Card_ID'].apply(corret_card_id)
-
-    # set indexes
-    # df= df.set_index(['Card_ID', 'Date'])
     return df
+
+
+def drop_columns_nan_null(df_drop, df_look,
+                          keep_cols,
+                          drop_proportion=0.9):
+    """ drop columns with lots of nans or without values """
+
+    one_value_cols = [
+        col for col in df_look.columns if df_look[col].nunique() <= 1]
+
+    many_null_cols = [col for col in df_look.columns if
+                      df_look[col].isnull().sum() / df_look.shape[0] > drop_proportion]
+
+    big_top_value_cols = [col for col in df_look.columns if
+                          df_look[col].value_counts(dropna=False, normalize=True).
+                          values[0] > drop_proportion]
+
+    cols_to_drop = list(set(many_null_cols +
+                            big_top_value_cols +
+                            one_value_cols
+                            ))
+
+    for keep_col in keep_cols:
+        if keep_col in cols_to_drop:
+            cols_to_drop.remove(keep_col)
+    print(len(cols_to_drop), ' columns were removed because of nulls and NaNs')
+    print(f'dropped ones: {cols_to_drop}')
+    df_drop.drop(cols_to_drop, axis=1, inplace=True)
+
+    return df_drop
+
+def drop_columns_corr(df_drop, df_look,
+                      keep_cols,
+                      drop_threshold=0.98):
+    """drop columns with high correlation
+    """
+
+
+    # Absolute value correlation matrix
+    corr_matrix = df_look[df_look['isFraud'].notnull()].corr().abs()
+
+    # Getting the upper triangle of correlations
+    upper = corr_matrix.where(np.triu(np.ones(corr_matrix.shape), k=1).astype(np.bool))
+
+    # Select columns with correlations above threshold
+    cols_to_drop = [column for column in upper.columns if any(upper[column] > drop_threshold)]
+
+    for keep_col in keep_cols:
+        if keep_col in cols_to_drop:
+            cols_to_drop.remove(keep_col)
+    print(len(cols_to_drop), ' columns were removed because of high corr')
+    print(f'dropped ones: {cols_to_drop}')
+    df_drop.drop(cols_to_drop, axis=1, inplace=True)
+
+    return df_drop
 
 ###################################################################################################
 # training model
@@ -332,8 +395,8 @@ def train_model_regression(X, X_test, y, params, folds=None, model_type='lgb',
         if plot_feature_importance:
             feature_importance["importance"] /= n_splits
             cols = feature_importance[["feature", "importance"]]\
-                   .groupby("feature").mean().sort_values(
-                       by="importance", ascending=False)[:50].index
+                .groupby("feature").mean().sort_values(
+                    by="importance", ascending=False)[:50].index
 
             best_features = feature_importance.loc[feature_importance.feature.isin(
                 cols)]
