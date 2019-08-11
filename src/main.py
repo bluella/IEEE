@@ -68,6 +68,7 @@ df = df.reset_index()
 # delete heavy parts
 del train_identity, train_transaction, test_identity, test_transaction, train, test
 
+
 # %%
 # add nans count as feature
 V_columns = []
@@ -132,7 +133,7 @@ df['2_value_addr1'] = df['addr1'].astype(str).str[1:2].astype(float)
 df['3_value_addr1'] = df['addr1'].astype(str).str[2:3].astype(float)
 df['1_value_addr2'] = df['addr2'].astype(str).str[0:1].astype(float)
 df['2_value_addr2'] = df['addr2'].astype(str).str[1:2].astype(float)
-df['3_value_addr2'] = df['addr2'].astype(str).str[2:3].astype(float)
+
 
 df['TransactionAmt_to_mean_card_id'] = df['TransactionAmt'] - \
     df.groupby(['Card_ID'])['TransactionAmt'].transform('mean')
@@ -274,6 +275,9 @@ for c in ['P_emaildomain', 'R_emaildomain']:
 df.drop(['id_31', 'id_33', 'id_30', 'DeviceInfo'], axis=1, inplace=True)
 # %%
 # check specific feature# %%
+# %%
+# display(df['addr2'].value_counts().head(50))
+# # print(df[['addr2']][df['addr2'] < 101])
 
 # train['id_11'].value_counts(dropna=False, normalize=True).head()
 # sns.distplot(train['id_07'].dropna())
@@ -407,7 +411,6 @@ params = {'num_leaves': 256,
           'reg_lambda': 0.3,
           'colsample_bytree': 0.9,
           'device_type': 'gpu'
-          # 'categorical_feature': cat_cols
           }  # test_score = 0.9393 cvm = 0.93
 
 # params = {'num_leaves': 256,
