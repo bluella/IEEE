@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 """Universal kernel blocks"""
+import re
 import os
 import time
 import datetime as dt
@@ -136,6 +137,20 @@ def resumetable(df):
 ###################################################################################################
 # preprocessing
 ###################################################################################################
+def get_floats_from_string(string_to_parse):
+    """finds all float numbers in string"""
+    res_list = re.findall(r"[-+]?\d*\.\d+|\d+", string_to_parse)
+
+    return res_list
+
+def none_or_first(list_to_get):
+    """gets first element of list of None"""
+    if list_to_get:
+        return list_to_get[0]
+    else:
+        return None
+
+
 def clean_inf_nan(df):
     """nan instead of inf"""
     return df.replace([np.inf, -np.inf], np.nan)
@@ -171,7 +186,7 @@ def add_datetime_info(df_trans, ts_column='TransactionDT', start_date=dt.datetim
     return df_trans
 
 
-def corret_card_id(x):
+def correct_card_id(x):
     """Just replacement of characters"""
 
     x = x.replace('.0', '')
@@ -183,7 +198,7 @@ def corret_card_id(x):
 
 
 def add_card_id(df):
-    """Apply corret_card_id to df columns"""
+    """Apply correct_card_id to df columns"""
     cards_cols = ['card1', 'card2', 'card3', 'card5']
     for card in cards_cols:
         if '1' in card:
@@ -234,7 +249,7 @@ def drop_columns_corr(df_drop, df_look,
     corr_matrix = df_look[df_look['isFraud'].notnull()].corr().abs()
 
     # Getting the upper triangle of correlations
-    upper = corr_matrix.where(np.triu(np.ones(corr_matrix.shape), k=1).astype(np.bool))
+    upper = corr_matrix.where(np.array(np.triu(np.ones(corr_matrix.shape), k=1)).astype(np.bool))
 
     # Select columns with correlations above threshold
     cols_to_drop = [column for column in upper.columns if any(upper[column] > drop_threshold)]
@@ -276,7 +291,14 @@ def train_model_regression(X, X_test, y, params, folds=None, model_type='lgb',
     """
     columns = X.columns if columns is None else columns
     X_test = X_test[columns]
-    splits = folds.split(X) if splits is None else splits
+
+    # check for different Kfolds
+    if str(type(folds)) == "<class 'sklearn.model_selection._split.StratifiedKFold'>":
+        splits = folds.split(X, y)
+    elif str(type(folds)) == "<class 'sklearn.model_selection._split.TimeSeriesSplit'>":
+        splits = folds.split(X) if splits is None else splits
+    else:
+        splits = folds.split(X) if splits is None else splits
     n_splits = folds.n_splits if splits is None else n_folds
 
     # to set up scoring parameters
@@ -434,6 +456,15 @@ def train_model_classification(X, X_test, y, params, folds, model_type='lgb',
 
     """
     columns = X.columns if columns is None else columns
+
+    # check for different Kfolds
+    if str(type(folds)) == "<class 'sklearn.model_selection._split.StratifiedKFold'>":
+        splits = folds.split(X, y)
+    elif str(type(folds)) == "<class 'sklearn.model_selection._split.TimeSeriesSplit'>":
+        splits = folds.split(X) if splits is None else splits
+    else:
+        splits = folds.split(X) if splits is None else splits
+
     n_splits = folds.n_splits if splits is None else n_folds
     X_test = X_test[columns]
 
@@ -463,7 +494,7 @@ def train_model_classification(X, X_test, y, params, folds, model_type='lgb',
     feature_importance = pd.DataFrame()
 
     # split and train on folds
-    for fold_n, (train_index, valid_index) in enumerate(folds.split(X)):
+    for fold_n, (train_index, valid_index) in enumerate(splits):
         print(f'Fold {fold_n + 1} started at {time.ctime()}')
         if isinstance(X, np.ndarray):
             X_train, X_valid = X[columns][train_index], X[columns][valid_index]

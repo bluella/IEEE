@@ -4,20 +4,30 @@
 
 # %%
 # All the imports
-from sklearn.metrics import precision_score, recall_score, confusion_matrix, accuracy_score, roc_auc_score, f1_score, roc_curve, auc, precision_recall_curve
-from sklearn.model_selection import train_test_split, StratifiedKFold, KFold
-from bayes_opt import BayesianOptimization
-import lightgbm as lgb
 import warnings
 import multiprocessing
+from sklearn.metrics import precision_score, recall_score, confusion_matrix,\
+                            accuracy_score, roc_auc_score, f1_score,\
+                            roc_curve, auc, precision_recall_curve
+from sklearn.model_selection import train_test_split, StratifiedKFold, KFold, TimeSeriesSplit
+from sklearn.preprocessing import LabelEncoder
+from bayes_opt import BayesianOptimization
+import lightgbm as lgb
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
 import seaborn as sns
-from sklearn.preprocessing import LabelEncoder
-from sklearn.model_selection import TimeSeriesSplit, KFold, StratifiedKFold
+
+
 from src.lib import helpers as hlp
 
+# %%
+def my_csv_read(csv_file):
+    """Solve function pickle issues
+    https://stackoverflow.com/questions/8804830/
+    python-multiprocessing-picklingerror-cant-pickle-type-function
+    """
+    return pd.read_csv(csv_file)
 
 # %%
 # Load datasets
@@ -32,7 +42,7 @@ with multiprocessing.Pool() as pool:
     train_identity, \
     train_transaction, \
     test_identity, \
-    test_transaction, sub = pool.map(pd.read_csv, datasets)
+    test_transaction, sub = pool.map(my_csv_read, datasets)
 
 
 # %%
@@ -107,7 +117,7 @@ df = hlp.add_datetime_info(df)
 # card features
 column_card_numbers = ['card1', 'card2', 'card3', 'card5']
 for column in column_card_numbers:
-    df[column] = df[column].map(str).fillna('NNNN').map(hlp.corret_card_id)
+    df[column] = df[column].map(str).fillna('NNNN').map(hlp.correct_card_id)
     for number in [1, 2, 3, 4]:
         df[column + '_' + str(number)] = df[column].str[number-1:number]
 
@@ -119,9 +129,6 @@ df['device_version'] = df['DeviceInfo'].str.split('/', expand=True)[1]
 
 df['OS_id_30'] = df['id_30'].str.split(' ', expand=True)[0]
 df['version_id_30'] = df['id_30'].str.split(' ', expand=True)[1]
-
-df['browser_id_31'] = df['id_31'].str.split(' ', expand=True)[0]
-df['version_id_31'] = df['id_31'].str.split(' ', expand=True)[1]
 
 df['screen_width'] = df['id_33'].str.split('x', expand=True)[0]
 df['screen_height'] = df['id_33'].str.split('x', expand=True)[1]
@@ -154,7 +161,7 @@ df['TransactionAmt_to_std_card4'] = df['TransactionAmt'] / \
     df.groupby(['card4'])['TransactionAmt'].transform('std')
 
 
-df.drop(['id_31', 'id_33', 'id_30', 'DeviceInfo'], axis=1, inplace=True)
+
 # %%
 # just madness with renaming
 # Device renaming
@@ -189,8 +196,31 @@ df.loc[df['device_name'].str.contains('HTC', na=False), 'device_name'] = 'HTC'
 df.loc[df['device_name'].str.contains(
     'ASUS', na=False), 'device_name'] = 'Asus'
 
-df.loc[df.device_name.isin(df.device_name.value_counts()
-                           [df.device_name.value_counts() < 200].index), 'device_name'] = "Others"
+df.loc[df.device_name.isin(df.device_name.value_counts()\
+[df.device_name.value_counts() < 200].index), 'device_name'] = "Others"
+
+df['browser_name'] = df['id_31']
+df.loc[df['browser_name'].str.lower.contains(
+    'sumsung', na=False), 'browser_name'] = 'sumsung'
+df.loc[df['browser_name'].str.lower.contains(
+    'safari', na=False), 'browser_name'] = 'safari'
+df.loc[df['browser_name'].str.lower.contains(
+    'opera', na=False), 'browser_name'] = 'opera'
+df.loc[df['browser_name'].str.lower.contains(
+    'google', na=False), 'browser_name'] = 'chrome'
+df.loc[df['browser_name'].str.lower.contains(
+    'firefox', na=False), 'browser_name'] = 'firefox'
+df.loc[df['browser_name'].str.lower.contains(
+    'edge', na=False), 'browser_name'] = 'edge'
+df.loc[df['browser_name'].str.lower.contains(
+    'android', na=False), 'browser_name'] = 'android'
+df.loc[df['browser_name'].str.lower.contains(
+    'chrome', na=False), 'browser_name'] = 'chrome'
+
+df.loc[df.browser_name.isin(df.browser_name.value_counts()
+                            [df.browser_name.value_counts() < 100].index), 'browser_name'] = "other"
+
+df['browser_version'] = df['id_31'].str.map(hlp.get_floats_from_string).map(hlp.none_or_first)
 # %%
 # email madness
 emails = {'gmail': 'google', 'att.net': 'att', 'twc.com': 'spectrum',
@@ -235,7 +265,9 @@ for c in ['P_emaildomain', 'R_emaildomain']:
     df[c + '_suffix'] = df[c +
                            '_suffix'].map(lambda x: x if str(x) not in us_emails else 'us')
 
-
+# %%
+# drop changed columns
+df.drop(['id_31', 'id_33', 'id_30', 'DeviceInfo'], axis=1, inplace=True)
 # %%
 # check specific feature# %%
 
@@ -351,7 +383,7 @@ X_test = X_test.set_index('Card_ID')
 # train params
 n_fold = 5
 # folds = TimeSeriesSplit(n_splits=n_fold)
-folds = KFold(n_splits=n_fold)
+folds = StratifiedKFold(n_splits=n_fold, shuffle=True)
 
 # %%
 # train lgb
@@ -373,6 +405,25 @@ folds = KFold(n_splits=n_fold)
 #           # 'categorical_feature': cat_cols
 #           }  # test_score = 0.9393 cvm = 0.93
 
+params = {'num_leaves': 256,
+          'min_child_samples': 79,
+          'objective': 'binary',
+          'max_depth': 13,
+          'learning_rate': 0.03,
+          "boosting_type": "gbdt",
+          "subsample_freq": 1,
+          "subsample": 0.1,
+          "bagging_fraction": 0.1,
+          "feature_fraction": 0.1,
+          #   "bagging_seed": 11, # 'categorical_feature': cat_cols
+          "metric": 'auc',
+          "verbosity": -1,
+          'reg_alpha': 1,
+          'reg_lambda': 1,
+          'colsample_bytree': 0.9,
+          'device_type': 'gpu'
+          }  # test_score = 0.9393 cvm = 0.93
+# 'categorical_feature': cat_cols
 # params = {'num_leaves': 491,
 #           'min_child_weight': 0.034,
 #           'feature_fraction': 0.37,
@@ -392,22 +443,21 @@ folds = KFold(n_splits=n_fold)
 #          } # test = 0.943 with not mine features, not special 0.937 IRL
 
 
-# result_dict_lgb = hlp.train_model_classification(X=X,
-#                                                  X_test=X_test, y=Y,
-#                                                  params=params, folds=folds, model_type='lgb',
-#                                                  eval_metric='auc', plot_feature_importance=True,
-#                                                  verbose=500, early_stopping_rounds=200,
-#                                                  n_estimators=6000, averaging='usual', n_jobs=7)
+result_dict_lgb = hlp.train_model_classification(X=X,
+                                                 X_test=X_test, y=Y,
+                                                 params=params, folds=folds, model_type='lgb',
+                                                 eval_metric='auc', plot_feature_importance=True,
+                                                 verbose=500, early_stopping_rounds=200,
+                                                 n_estimators=6000, averaging='usual', n_jobs=7)
 
 
 # %%
 # saving results
-# target = 'isFraud'
-# test = test.sort_values('TransactionDT')
-# test['prediction_lgb'] = result_dict_lgb['prediction']
-# # in case of blendingo + result_dict_xgb['prediction']
-# sub[target] = pd.merge(sub, test, on='TransactionID')['prediction_lgb']
-# sub.to_csv(f'{hlp.DATASETS_PRED_PATH}submission.csv', index=False)
+test = test.sort_values('TransactionDT')
+test['prediction_lgb'] = result_dict_lgb['prediction']
+# in case of blendingo + result_dict_xgb['prediction']
+sub[target] = pd.merge(sub, test, on='TransactionID')['prediction_lgb']
+sub.to_csv(f'{hlp.DATASETS_PRED_PATH}submission.csv', index=False)
 
 
 # %%
@@ -435,10 +485,10 @@ folds = KFold(n_splits=n_fold)
 # %%
 # Bayesian optimization
 # cut tr and val
-bayesian_tr_idx, bayesian_val_idx = train_test_split(
-    X, test_size=0.3, random_state=42, stratify=Y)
-bayesian_tr_idx = bayesian_tr_idx.index
-bayesian_val_idx = bayesian_val_idx.index
+# bayesian_tr_idx, bayesian_val_idx = train_test_split(
+#     X, test_size=0.3, random_state=42, stratify=Y)
+# bayesian_tr_idx = bayesian_tr_idx.index
+# bayesian_val_idx = bayesian_val_idx.index
 
 # %%
 # lgb to optimize
@@ -446,102 +496,102 @@ bayesian_val_idx = bayesian_val_idx.index
 # black box LGBM
 
 
-def LGB_bayesian(
-    # learning_rate,
-    num_leaves,
-    bagging_fraction,
-    feature_fraction,
-    min_child_weight,
-    min_data_in_leaf,
-    max_depth,
-    reg_alpha,
-    reg_lambda
-):
+# def LGB_bayesian(
+#     # learning_rate,
+#     num_leaves,
+#     bagging_fraction,
+#     feature_fraction,
+#     min_child_weight,
+#     min_data_in_leaf,
+#     max_depth,
+#     reg_alpha,
+#     reg_lambda
+# ):
 
-    # LightGBM expects next three parameters need to be integer.
-    num_leaves = int(num_leaves)
-    min_data_in_leaf = int(min_data_in_leaf)
-    max_depth = int(max_depth)
+#     # LightGBM expects next three parameters need to be integer.
+#     num_leaves = int(num_leaves)
+#     min_data_in_leaf = int(min_data_in_leaf)
+#     max_depth = int(max_depth)
 
-    assert type(num_leaves) == int
-    assert type(min_data_in_leaf) == int
-    assert type(max_depth) == int
+#     assert type(num_leaves) == int
+#     assert type(min_data_in_leaf) == int
+#     assert type(max_depth) == int
 
-    param = {
-        'num_leaves': num_leaves,
-        'min_data_in_leaf': min_data_in_leaf,
-        'min_child_weight': min_child_weight,
-        'bagging_fraction': bagging_fraction,
-        'feature_fraction': feature_fraction,
-        # 'learning_rate' : learning_rate,
-        'max_depth': max_depth,
-        'reg_alpha': reg_alpha,
-        'reg_lambda': reg_lambda,
-        'objective': 'binary',
-        'save_binary': True,
-        'seed': 1337,
-        'feature_fraction_seed': 1337,
-        'bagging_seed': 1337,
-        'drop_seed': 1337,
-        'data_random_seed': 1337,
-        'boosting_type': 'gbdt',
-        'verbose': 1,
-        'is_unbalance': False,
-        'boost_from_average': True,
-        'metric': 'auc',
-        'device_type': 'gpu',
-        'n_jobs': 7}
+#     param = {
+#         'num_leaves': num_leaves,
+#         'min_data_in_leaf': min_data_in_leaf,
+#         'min_child_weight': min_child_weight,
+#         'bagging_fraction': bagging_fraction,
+#         'feature_fraction': feature_fraction,
+#         # 'learning_rate' : learning_rate,
+#         'max_depth': max_depth,
+#         'reg_alpha': reg_alpha,
+#         'reg_lambda': reg_lambda,
+#         'objective': 'binary',
+#         'save_binary': True,
+#         'seed': 1337,
+#         'feature_fraction_seed': 1337,
+#         'bagging_seed': 1337,
+#         'drop_seed': 1337,
+#         'data_random_seed': 1337,
+#         'boosting_type': 'gbdt',
+#         'verbose': 1,
+#         'is_unbalance': False,
+#         'boost_from_average': True,
+#         'metric': 'auc',
+#         'device_type': 'gpu',
+#         'n_jobs': 7}
 
-    oof = np.zeros(len(X))
-    trn_data = lgb.Dataset(
-        X.iloc[bayesian_tr_idx].values, label=Y.iloc[bayesian_tr_idx].values)
-    val_data = lgb.Dataset(
-        X.iloc[bayesian_val_idx].values, label=Y.iloc[bayesian_val_idx].values)
+#     oof = np.zeros(len(X))
+#     trn_data = lgb.Dataset(
+#         X.iloc[bayesian_tr_idx].values, label=Y.iloc[bayesian_tr_idx].values)
+#     val_data = lgb.Dataset(
+#         X.iloc[bayesian_val_idx].values, label=Y.iloc[bayesian_val_idx].values)
 
-    clf = lgb.train(param, trn_data,  num_boost_round=50, valid_sets=[
-                    trn_data, val_data], verbose_eval=0, early_stopping_rounds=50)
+#     clf = lgb.train(param, trn_data,  num_boost_round=50, valid_sets=[
+#                     trn_data, val_data], verbose_eval=0, early_stopping_rounds=50)
 
-    oof[bayesian_val_idx] = clf.predict(
-        X.iloc[bayesian_val_idx].values, num_iteration=clf.best_iteration)
+#     oof[bayesian_val_idx] = clf.predict(
+#         X.iloc[bayesian_val_idx].values, num_iteration=clf.best_iteration)
 
-    score = roc_auc_score(
-        X.iloc[bayesian_val_idx].values, oof[bayesian_val_idx])
+#     score = roc_auc_score(
+#         X.iloc[bayesian_val_idx].values, oof[bayesian_val_idx])
 
-    return score
-
-
-bounds_LGB = {
-    'num_leaves': (31, 500),
-    'min_data_in_leaf': (20, 200),
-    'bagging_fraction': (0.1, 0.9),
-    'feature_fraction': (0.1, 0.9),
-    # 'learning_rate': (0.01, 0.3),
-    'min_child_weight': (0.00001, 0.01),
-    'reg_alpha': (1, 2),
-    'reg_lambda': (1, 2),
-    'max_depth': (5, 50),
-}
-
-init_points = 10
-n_iter = 15
-
-LGB_BO = BayesianOptimization(LGB_bayesian, bounds_LGB, random_state=42)
-print(LGB_BO.space.keys)
-
-print('-' * 130)
-
-with warnings.catch_warnings():
-    warnings.filterwarnings('ignore')
-    LGB_BO.maximize(init_points=init_points, n_iter=n_iter,
-                    acq='ucb', xi=0.0, alpha=1e-6)
+#     return score
 
 
-LGB_BO.max['target']
-LGB_BO.max['params']
+# bounds_LGB = {
+#     'num_leaves': (31, 500),
+#     'min_data_in_leaf': (20, 200),
+#     'bagging_fraction': (0.1, 0.9),
+#     'feature_fraction': (0.1, 0.9),
+#     # 'learning_rate': (0.01, 0.3),
+#     'min_child_weight': (0.00001, 0.01),
+#     'reg_alpha': (1, 2),
+#     'reg_lambda': (1, 2),
+#     'max_depth': (5, 50),
+# }
+
+# init_points = 10
+# n_iter = 15
+
+# LGB_BO = BayesianOptimization(LGB_bayesian, bounds_LGB, random_state=42)
+# print(LGB_BO.space.keys)
+
+# print('-' * 130)
+
+# with warnings.catch_warnings():
+#     warnings.filterwarnings('ignore')
+#     LGB_BO.maximize(init_points=init_points, n_iter=n_iter,
+#                     acq='ucb', xi=0.0, alpha=1e-6)
 
 
-# %%
-print(Y.describe())
+# LGB_BO.max['target']
+# LGB_BO.max['params']
+
+
+# # %%
+# print(Y.describe())
 
 
 # %%
