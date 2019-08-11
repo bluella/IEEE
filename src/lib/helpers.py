@@ -137,6 +137,13 @@ def resumetable(df):
 ###################################################################################################
 # preprocessing
 ###################################################################################################
+def my_csv_read(csv_file):
+    """Solve function pickle issues
+    https://stackoverflow.com/questions/8804830/
+    python-multiprocessing-picklingerror-cant-pickle-type-function
+    """
+    return pd.read_csv(csv_file)
+
 def get_floats_from_string(string_to_parse):
     """finds all float numbers in string"""
     res_list = re.findall(r"[-+]?\d*\.\d+|\d+", string_to_parse)

@@ -7,8 +7,8 @@
 import warnings
 import multiprocessing
 from sklearn.metrics import precision_score, recall_score, confusion_matrix,\
-                            accuracy_score, roc_auc_score, f1_score,\
-                            roc_curve, auc, precision_recall_curve
+    accuracy_score, roc_auc_score, f1_score,\
+    roc_curve, auc, precision_recall_curve
 from sklearn.model_selection import train_test_split, StratifiedKFold, KFold, TimeSeriesSplit
 from sklearn.preprocessing import LabelEncoder
 from bayes_opt import BayesianOptimization
@@ -18,16 +18,8 @@ import pandas as pd
 import matplotlib.pyplot as plt
 import seaborn as sns
 
-
 from src.lib import helpers as hlp
 
-# %%
-def my_csv_read(csv_file):
-    """Solve function pickle issues
-    https://stackoverflow.com/questions/8804830/
-    python-multiprocessing-picklingerror-cant-pickle-type-function
-    """
-    return pd.read_csv(csv_file)
 
 # %%
 # Load datasets
@@ -40,9 +32,9 @@ datasets = [
 
 with multiprocessing.Pool() as pool:
     train_identity, \
-    train_transaction, \
-    test_identity, \
-    test_transaction, sub = pool.map(my_csv_read, datasets)
+        train_transaction, \
+        test_identity, \
+        test_transaction, sub = pool.map(hlp.my_csv_read, datasets)
 
 
 # %%
@@ -75,7 +67,6 @@ df = df.reset_index()
 # %%
 # delete heavy parts
 del train_identity, train_transaction, test_identity, test_transaction, train, test
-
 
 # %%
 # add nans count as feature
@@ -124,9 +115,6 @@ for column in column_card_numbers:
 # add card number
 df = hlp.add_card_id(df)
 
-df['device_name'] = df['DeviceInfo'].str.split('/', expand=True)[0]
-df['device_version'] = df['DeviceInfo'].str.split('/', expand=True)[1]
-
 df['OS_id_30'] = df['id_30'].str.split(' ', expand=True)[0]
 df['version_id_30'] = df['id_30'].str.split(' ', expand=True)[1]
 
@@ -136,14 +124,15 @@ df['screen_height'] = df['id_33'].str.split('x', expand=True)[1]
 df['diff_adrr'] = df.addr1 - df.addr2
 df['sum_adrr'] = df.addr1 + df.addr2
 
-df['addr1'] = df['addr1'].fillna(0)
-df['addr2'] = df['addr2'].fillna(0)
+df['addr1'] = df['addr1'].fillna(999)
+df['addr2'] = df['addr2'].fillna(999)
 
-df['first_value_addr1'] = df['addr1'].astype(str).str[0:1].astype(float)
-df['two_value_addr1'] = df['addr1'].astype(str).str[0:2].astype(float)
-
-df['first_value_addr2'] = df['addr2'].astype(str).str[0:1].astype(float)
-df['two_value_addr2'] = df['addr2'].astype(str).str[0:2].astype(float)
+df['1_value_addr1'] = df['addr1'].astype(str).str[0:1].astype(float)
+df['2_value_addr1'] = df['addr1'].astype(str).str[1:2].astype(float)
+df['3_value_addr1'] = df['addr1'].astype(str).str[2:3].astype(float)
+df['1_value_addr2'] = df['addr2'].astype(str).str[0:1].astype(float)
+df['2_value_addr2'] = df['addr2'].astype(str).str[1:2].astype(float)
+df['3_value_addr2'] = df['addr2'].astype(str).str[2:3].astype(float)
 
 df['TransactionAmt_to_mean_card_id'] = df['TransactionAmt'] - \
     df.groupby(['Card_ID'])['TransactionAmt'].transform('mean')
@@ -161,66 +150,81 @@ df['TransactionAmt_to_std_card4'] = df['TransactionAmt'] / \
     df.groupby(['card4'])['TransactionAmt'].transform('std')
 
 
-
 # %%
 # just madness with renaming
 # Device renaming
+df['device_name'] = df['DeviceInfo']
 df.loc[df['device_name'].str.contains(
-    'SM', na=False), 'device_name'] = 'Samsung'
+    'sm', na=False, case=False), 'device_name'] = 'samsung'
 df.loc[df['device_name'].str.contains(
-    'SAMSUNG', na=False), 'device_name'] = 'Samsung'
+    'samsu', na=False, case=False), 'device_name'] = 'samsung'
 df.loc[df['device_name'].str.contains(
-    'GT-', na=False), 'device_name'] = 'Samsung'
+    'gt-', na=False, case=False), 'device_name'] = 'samsung'
 df.loc[df['device_name'].str.contains(
-    'Moto G', na=False), 'device_name'] = 'Motorola'
+    'moto', na=False, case=False), 'device_name'] = 'motorola'
+df.loc[df['device_name'].str.contains('lg-', na=False, case=False),
+       'device_name'] = 'lg'
+df.loc[df['device_name'].str.contains('rv:', na=False, case=False),
+       'device_name'] = 'rv'
 df.loc[df['device_name'].str.contains(
-    'Moto', na=False), 'device_name'] = 'Motorola'
+    'huawei', na=False, case=False), 'device_name'] = 'huawei'
 df.loc[df['device_name'].str.contains(
-    'moto', na=False), 'device_name'] = 'Motorola'
-df.loc[df['device_name'].str.contains('LG-', na=False), 'device_name'] = 'LG'
-df.loc[df['device_name'].str.contains('rv:', na=False), 'device_name'] = 'RV'
+    'ale-', na=False, case=False), 'device_name'] = 'huawei'
 df.loc[df['device_name'].str.contains(
-    'HUAWEI', na=False), 'device_name'] = 'Huawei'
+    '-l', na=False, case=False), 'device_name'] = 'huawei'
 df.loc[df['device_name'].str.contains(
-    'ALE-', na=False), 'device_name'] = 'Huawei'
+    'blade', na=False, case=False), 'device_name'] = 'zte'
 df.loc[df['device_name'].str.contains(
-    '-L', na=False), 'device_name'] = 'Huawei'
+    'linux', na=False, case=False), 'device_name'] = 'linux'
+df.loc[df['device_name'].str.contains('xt', na=False, case=False),
+       'device_name'] = 'sony'
+df.loc[df['device_name'].str.contains('htc', na=False, case=False),
+       'device_name'] = 'htc'
 df.loc[df['device_name'].str.contains(
-    'Blade', na=False), 'device_name'] = 'ZTE'
-df.loc[df['device_name'].str.contains(
-    'BLADE', na=False), 'device_name'] = 'ZTE'
-df.loc[df['device_name'].str.contains(
-    'Linux', na=False), 'device_name'] = 'Linux'
-df.loc[df['device_name'].str.contains('XT', na=False), 'device_name'] = 'Sony'
-df.loc[df['device_name'].str.contains('HTC', na=False), 'device_name'] = 'HTC'
-df.loc[df['device_name'].str.contains(
-    'ASUS', na=False), 'device_name'] = 'Asus'
+    'asus', na=False, case=False), 'device_name'] = 'asus'
 
-df.loc[df.device_name.isin(df.device_name.value_counts()\
-[df.device_name.value_counts() < 200].index), 'device_name'] = "Others"
 
+df.loc[df.device_name.isin(df.device_name.value_counts()
+                           [df.device_name.value_counts() < 200].index), 'device_name'] = "other"
+
+df['device_version'] = df['DeviceInfo'].astype(str).map(
+    hlp.get_floats_from_string).map(hlp.none_or_first)
+df.loc[df.device_version.isin(df.device_version.value_counts()
+                              [df.device_version.value_counts() < 200].index),\
+                              'device_version'] = -999
+
+
+
+# %%
+# browser renaming
 df['browser_name'] = df['id_31']
-df.loc[df['browser_name'].str.lower.contains(
-    'sumsung', na=False), 'browser_name'] = 'sumsung'
-df.loc[df['browser_name'].str.lower.contains(
-    'safari', na=False), 'browser_name'] = 'safari'
-df.loc[df['browser_name'].str.lower.contains(
-    'opera', na=False), 'browser_name'] = 'opera'
-df.loc[df['browser_name'].str.lower.contains(
-    'google', na=False), 'browser_name'] = 'chrome'
-df.loc[df['browser_name'].str.lower.contains(
-    'firefox', na=False), 'browser_name'] = 'firefox'
-df.loc[df['browser_name'].str.lower.contains(
-    'edge', na=False), 'browser_name'] = 'edge'
-df.loc[df['browser_name'].str.lower.contains(
-    'android', na=False), 'browser_name'] = 'android'
-df.loc[df['browser_name'].str.lower.contains(
-    'chrome', na=False), 'browser_name'] = 'chrome'
+df.loc[df['browser_name'].str.contains(
+    'samsung', na=False, case=False), 'browser_name'] = 'samsung'
+df.loc[df['browser_name'].str.contains(
+    'safari', na=False, case=False), 'browser_name'] = 'safari'
+df.loc[df['browser_name'].str.contains(
+    'opera', na=False, case=False), 'browser_name'] = 'opera'
+df.loc[df['browser_name'].str.contains(
+    'google', na=False, case=False), 'browser_name'] = 'chrome'
+df.loc[df['browser_name'].str.contains(
+    'firefox', na=False, case=False), 'browser_name'] = 'firefox'
+df.loc[df['browser_name'].str.contains(
+    'edge', na=False, case=False), 'browser_name'] = 'edge'
+df.loc[df['browser_name'].str.contains(
+    'android', na=False, case=False), 'browser_name'] = 'android'
+df.loc[df['browser_name'].str.contains(
+    'chrome', na=False, case=False), 'browser_name'] = 'chrome'
 
 df.loc[df.browser_name.isin(df.browser_name.value_counts()
-                            [df.browser_name.value_counts() < 100].index), 'browser_name'] = "other"
+                            [df.browser_name.value_counts() < 200].index), 'browser_name'] = "other"
 
-df['browser_version'] = df['id_31'].str.map(hlp.get_floats_from_string).map(hlp.none_or_first)
+df['browser_version'] = df['id_31'].astype(str).map(
+    hlp.get_floats_from_string).map(hlp.none_or_first)
+
+df.loc[df.browser_version.isin(df.browser_version.value_counts()\
+    [df.browser_version.value_counts() < 200].index),\
+    'browser_version'] = -999
+
 # %%
 # email madness
 emails = {'gmail': 'google', 'att.net': 'att', 'twc.com': 'spectrum',
@@ -382,47 +386,48 @@ X_test = X_test.set_index('Card_ID')
 # %%
 # train params
 n_fold = 5
+folds = KFold(n_splits=n_fold)
 # folds = TimeSeriesSplit(n_splits=n_fold)
-folds = StratifiedKFold(n_splits=n_fold, shuffle=True)
+# folds = StratifiedKFold(n_splits=n_fold, shuffle=True)
 
 # %%
 # train lgb
-# params = {'num_leaves': 256,
-#           'min_child_samples': 79,
-#           'objective': 'binary',
-#           'max_depth': 13,
-#           'learning_rate': 0.03,
-#           "boosting_type": "gbdt",
-#           "subsample_freq": 3,
-#           "subsample": 0.9,
-#           #   "bagging_seed": 11,
-#           "metric": 'auc',
-#           "verbosity": -1,
-#           'reg_alpha': 0.3,
-#           'reg_lambda': 0.3,
-#           'colsample_bytree': 0.9,
-#           'device_type': 'gpu'
-#           # 'categorical_feature': cat_cols
-#           }  # test_score = 0.9393 cvm = 0.93
-
 params = {'num_leaves': 256,
           'min_child_samples': 79,
           'objective': 'binary',
           'max_depth': 13,
           'learning_rate': 0.03,
           "boosting_type": "gbdt",
-          "subsample_freq": 1,
-          "subsample": 0.1,
-          "bagging_fraction": 0.1,
-          "feature_fraction": 0.1,
-          #   "bagging_seed": 11, # 'categorical_feature': cat_cols
+          "subsample_freq": 3,
+          "subsample": 0.9,
+          #   "bagging_seed": 11,
           "metric": 'auc',
           "verbosity": -1,
-          'reg_alpha': 1,
-          'reg_lambda': 1,
+          'reg_alpha': 0.3,
+          'reg_lambda': 0.3,
           'colsample_bytree': 0.9,
           'device_type': 'gpu'
+          # 'categorical_feature': cat_cols
           }  # test_score = 0.9393 cvm = 0.93
+
+# params = {'num_leaves': 256,
+#           'min_child_samples': 79,
+#           'objective': 'binary',
+#           'max_depth': 13,
+#           'learning_rate': 0.03,
+#           "boosting_type": "gbdt",
+#           "subsample_freq": 1,
+#           "subsample": 0.1,
+#           "bagging_fraction": 0.1,
+#           "feature_fraction": 0.1,
+#           #   "bagging_seed": 11, # 'categorical_feature': cat_cols
+#           "metric": 'auc',
+#           "verbosity": -1,
+#           'reg_alpha': 1,
+#           'reg_lambda': 1,
+#           'colsample_bytree': 0.9,
+#           'device_type': 'gpu'
+#           }  # test_score = 0.9393 cvm = 0.93
 # 'categorical_feature': cat_cols
 # params = {'num_leaves': 491,
 #           'min_child_weight': 0.034,
