@@ -347,14 +347,23 @@ del df
 # %%
 # train preparation
 
-
+# EXPERIMENT, DELETE!!!!!!!!!!!!!!!!!!!!
+###############################################
 X = train.sort_values('TransactionDT').drop(
-    [target, 'TransactionDT', 'TransactionID'], axis=1)
+    [target], axis=1)
 Y = train.sort_values('TransactionDT')[target].astype(float)
-X_test = test.sort_values('TransactionDT').drop(
-    ['TransactionDT', 'TransactionID'], axis=1)
-# del train
+X_test = test.sort_values('TransactionDT')
+del train
 test = test[["TransactionDT", 'TransactionID']]
+###############################################
+
+# X = train.sort_values('TransactionDT').drop(
+#     [target, 'TransactionDT', 'TransactionID'], axis=1)
+# Y = train.sort_values('TransactionDT')[target].astype(float)
+# X_test = test.sort_values('TransactionDT').drop(
+#     ['TransactionDT', 'TransactionID'], axis=1)
+# del train
+# test = test[["TransactionDT", 'TransactionID']]
 
 # %%
 # check
@@ -385,14 +394,15 @@ X_test.fillna(-999, inplace=True)
 #                       'card5_2', 'version_id_31', 'first_value_addr1', 'id_06']
 # X = X[important_features].set_index('Card_ID')
 # X_test = X_test[important_features].set_index('Card_ID')
-X = X.set_index('Card_ID')
-X_test = X_test.set_index('Card_ID')
+
+# X = X.set_index('Card_ID')
+# X_test = X_test.set_index('Card_ID')
 # %%
 # train params
 n_fold = 5
-folds = KFold(n_splits=n_fold)
+# folds = KFold(n_splits=n_fold, shuffle=True)
 # folds = TimeSeriesSplit(n_splits=n_fold)
-# folds = StratifiedKFold(n_splits=n_fold, shuffle=True)
+folds = StratifiedKFold(n_splits=n_fold, shuffle=True)
 
 # %%
 # train lgb
@@ -412,10 +422,13 @@ params = {'num_leaves': 256,
           'colsample_bytree': 0.9,
           'device_type': 'gpu'
           }  # test_score = 0.9393 cvm = 0.93
+          # TST = 0.9397 cvm = 0.9756, TransID and
+          # TransDT are features are stratified shuffle
 
 # params = {'num_leaves': 256,
 #           'min_child_samples': 79,
 #           'objective': 'binary',
+#           'min_split_gain': 0.0001,
 #           'max_depth': 13,
 #           'learning_rate': 0.03,
 #           "boosting_type": "gbdt",
