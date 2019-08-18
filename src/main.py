@@ -191,9 +191,8 @@ df.loc[df.device_name.isin(df.device_name.value_counts()
 df['device_version'] = df['DeviceInfo'].astype(str).map(
     hlp.get_floats_from_string).map(hlp.none_or_first)
 df.loc[df.device_version.isin(df.device_version.value_counts()
-                              [df.device_version.value_counts() < 200].index),\
-                              'device_version'] = -999
-
+                              [df.device_version.value_counts() < 200].index),
+       'device_version'] = -999
 
 
 # %%
@@ -222,9 +221,9 @@ df.loc[df.browser_name.isin(df.browser_name.value_counts()
 df['browser_version'] = df['id_31'].astype(str).map(
     hlp.get_floats_from_string).map(hlp.none_or_first)
 
-df.loc[df.browser_version.isin(df.browser_version.value_counts()\
-    [df.browser_version.value_counts() < 200].index),\
-    'browser_version'] = -999
+df.loc[df.browser_version.isin(df.browser_version.value_counts()
+                               [df.browser_version.value_counts() < 200].index),
+       'browser_version'] = -999
 
 # %%
 # email madness
@@ -411,19 +410,19 @@ params = {'num_leaves': 256,
           'objective': 'binary',
           'max_depth': 13,
           'learning_rate': 0.03,
-          "boosting_type": "gbdt",
-          "subsample_freq": 3,
-          "subsample": 0.9,
-          #   "bagging_seed": 11,
-          "metric": 'auc',
-          "verbosity": -1,
+          'boosting_type': 'gbdt',
+          'subsample_freq': 3,
+          'subsample': 0.9,
+          #   'bagging_seed': 11,
+          'metric': 'auc',
+          'verbosity': -1,
           'reg_alpha': 0.3,
           'reg_lambda': 0.3,
           'colsample_bytree': 0.9,
           'device_type': 'gpu'
           }  # test_score = 0.9393 cvm = 0.93
-          # TST = 0.9397 cvm = 0.9756, TransID and
-          # TransDT are features are stratified shuffle
+# TST = 0.9397 cvm = 0.9756, TransID and
+# TransDT are features are stratified shuffle
 
 # params = {'num_leaves': 256,
 #           'min_child_samples': 79,
@@ -497,122 +496,3 @@ sub.to_csv(f'{hlp.DATASETS_PRED_PATH}submission.csv', index=False)
 # ).sort_values('importance', ascending=False).head(50)['importance'].index)
 
 
-# %%
-
-
-# print(len(important_features))
-
-
-# %%
-# Bayesian optimization
-# cut tr and val
-# bayesian_tr_idx, bayesian_val_idx = train_test_split(
-#     X, test_size=0.3, random_state=42, stratify=Y)
-# bayesian_tr_idx = bayesian_tr_idx.index
-# bayesian_val_idx = bayesian_val_idx.index
-
-# %%
-# lgb to optimize
-
-# black box LGBM
-
-
-# def LGB_bayesian(
-#     # learning_rate,
-#     num_leaves,
-#     bagging_fraction,
-#     feature_fraction,
-#     min_child_weight,
-#     min_data_in_leaf,
-#     max_depth,
-#     reg_alpha,
-#     reg_lambda
-# ):
-
-#     # LightGBM expects next three parameters need to be integer.
-#     num_leaves = int(num_leaves)
-#     min_data_in_leaf = int(min_data_in_leaf)
-#     max_depth = int(max_depth)
-
-#     assert type(num_leaves) == int
-#     assert type(min_data_in_leaf) == int
-#     assert type(max_depth) == int
-
-#     param = {
-#         'num_leaves': num_leaves,
-#         'min_data_in_leaf': min_data_in_leaf,
-#         'min_child_weight': min_child_weight,
-#         'bagging_fraction': bagging_fraction,
-#         'feature_fraction': feature_fraction,
-#         # 'learning_rate' : learning_rate,
-#         'max_depth': max_depth,
-#         'reg_alpha': reg_alpha,
-#         'reg_lambda': reg_lambda,
-#         'objective': 'binary',
-#         'save_binary': True,
-#         'seed': 1337,
-#         'feature_fraction_seed': 1337,
-#         'bagging_seed': 1337,
-#         'drop_seed': 1337,
-#         'data_random_seed': 1337,
-#         'boosting_type': 'gbdt',
-#         'verbose': 1,
-#         'is_unbalance': False,
-#         'boost_from_average': True,
-#         'metric': 'auc',
-#         'device_type': 'gpu',
-#         'n_jobs': 7}
-
-#     oof = np.zeros(len(X))
-#     trn_data = lgb.Dataset(
-#         X.iloc[bayesian_tr_idx].values, label=Y.iloc[bayesian_tr_idx].values)
-#     val_data = lgb.Dataset(
-#         X.iloc[bayesian_val_idx].values, label=Y.iloc[bayesian_val_idx].values)
-
-#     clf = lgb.train(param, trn_data,  num_boost_round=50, valid_sets=[
-#                     trn_data, val_data], verbose_eval=0, early_stopping_rounds=50)
-
-#     oof[bayesian_val_idx] = clf.predict(
-#         X.iloc[bayesian_val_idx].values, num_iteration=clf.best_iteration)
-
-#     score = roc_auc_score(
-#         X.iloc[bayesian_val_idx].values, oof[bayesian_val_idx])
-
-#     return score
-
-
-# bounds_LGB = {
-#     'num_leaves': (31, 500),
-#     'min_data_in_leaf': (20, 200),
-#     'bagging_fraction': (0.1, 0.9),
-#     'feature_fraction': (0.1, 0.9),
-#     # 'learning_rate': (0.01, 0.3),
-#     'min_child_weight': (0.00001, 0.01),
-#     'reg_alpha': (1, 2),
-#     'reg_lambda': (1, 2),
-#     'max_depth': (5, 50),
-# }
-
-# init_points = 10
-# n_iter = 15
-
-# LGB_BO = BayesianOptimization(LGB_bayesian, bounds_LGB, random_state=42)
-# print(LGB_BO.space.keys)
-
-# print('-' * 130)
-
-# with warnings.catch_warnings():
-#     warnings.filterwarnings('ignore')
-#     LGB_BO.maximize(init_points=init_points, n_iter=n_iter,
-#                     acq='ucb', xi=0.0, alpha=1e-6)
-
-
-# LGB_BO.max['target']
-# LGB_BO.max['params']
-
-
-# # %%
-# print(Y.describe())
-
-
-# %%
