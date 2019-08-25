@@ -615,3 +615,57 @@ def train_model_classification(X, X_test, y, params, folds, model_type='lgb',
             result_dict['top_columns'] = cols
 
     return result_dict
+
+# telegram API
+######################################################################################
+TELEGRAM_TOKEN = os.environ['TELEGRAM_DS_TOKEN']
+TELEGRAM_ID_LIST = [os.environ['TELEGRAM_ID']]
+
+def send_message_to_telegram(msg='hi'):
+    """in: str, out: str"""
+    METHOD_NAME = 'sendMessage'
+
+    for my_id in TELEGRAM_ID_LIST:
+        data_to_send = {
+            'chat_id': my_id,
+            'text': msg
+        }
+
+        header = {
+            'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8'
+        }
+
+        msg_req = requests.post('https://api.telegram.org/bot{}/{}'
+                                .format(TELEGRAM_TOKEN, METHOD_NAME),
+                                data=data_to_send,
+                                headers=header
+                                )
+    return msg_req
+
+
+def send_photo_to_telegram(photo='graph.png'):
+    """in: str, out: str"""
+    METHOD_NAME = '/sendPhoto'
+    REQUEST_URL = 'https://api.telegram.org/bot' + TELEGRAM_TOKEN
+
+    for my_id in TELEGRAM_ID_LIST:
+        files = {'photo': (photo, open(photo, "rb"))}
+        data = {'chat_id': my_id}
+        msg_req = requests.post(
+            REQUEST_URL + METHOD_NAME, data=data, files=files)
+
+    return msg_req
+
+
+def send_file_to_telegram(document='''/home/path_to_file'''):
+    """in: str, out: str"""
+    METHOD_NAME = '/sendDocument'
+    REQUEST_URL = 'https://api.telegram.org/bot' + TELEGRAM_TOKEN
+    for my_id in TELEGRAM_ID_LIST:
+        files = {'document': (document, open(document, "rb"))}
+        data = {'chat_id': my_id}
+
+        msg_req = requests.post(
+            REQUEST_URL + METHOD_NAME, data=data, files=files)
+
+    return msg_req
