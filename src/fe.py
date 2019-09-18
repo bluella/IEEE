@@ -47,6 +47,9 @@ test = pd.merge(test_transaction, test_identity,
                 on='TransactionID', how='left')
 
 # %%
+print(train.shape)
+print(test.shape)
+# %%
 # Merging test and train
 target = 'isFraud'
 test[target] = 'test'
@@ -67,12 +70,37 @@ for column in df.columns:
         D_columns.append(column)
 
 df['D_nulls'] = df[D_columns].isnull().sum(axis=1)
-
-
+# %%
+# Lets add datetime features
+df = hlp.add_datetime_info(df)
 
 # %%
-# drop changed columns
-# df.drop(['id_31', 'id_33', 'id_30', 'DeviceInfo'], axis=1, inplace=True)
+# card features
+column_card_numbers = ['card1', 'card2', 'card3', 'card5']
+for column in column_card_numbers:
+    df[column] = df[column].map(str).fillna('NNNN').map(hlp.correct_card_id)
+    for number in [1, 2, 3, 4]:
+        df[column + '_' + str(number)] = df[column].str[number-1:number]
+# %%
+# add card number
+df = hlp.add_card_id(df)
+
+# %%
+# means
+df['TransactionAmt_to_mean_card_id'] = df['TransactionAmt'] - \
+    df.groupby(['Card_ID'])['TransactionAmt'].transform('mean')
+
+df['TransactionAmt_to_std_card_id'] = df['TransactionAmt_to_mean_card_id'] / \
+    df.groupby(['Card_ID'])['TransactionAmt'].transform('std')
+
+df['TransactionAmt_to_mean_card1'] = df['TransactionAmt'] / \
+    df.groupby(['card1'])['TransactionAmt'].transform('mean')
+df['TransactionAmt_to_mean_card4'] = df['TransactionAmt'] / \
+    df.groupby(['card4'])['TransactionAmt'].transform('mean')
+df['TransactionAmt_to_std_card1'] = df['TransactionAmt'] / \
+    df.groupby(['card1'])['TransactionAmt'].transform('std')
+df['TransactionAmt_to_std_card4'] = df['TransactionAmt'] / \
+    df.groupby(['card4'])['TransactionAmt'].transform('std')
 
 
 # %%
@@ -101,14 +129,32 @@ for col in cat_columns:
         df[col] = le.transform(list(df[col].astype(str).values))
         # test[col] = le.transform(list(test[col].astype(str).values))
 
-
+# %%
+# remove total shit
+remove_cols = ['id_10', 'id_04', 'V144', 'V8', 'id_12',
+               'V238', 'V184', 'V224', 'V239', 'V262', 'V80', 'V64', 'V200',
+               'V42', 'V51', 'V94', 'V34', 'V39', 'V6', 'id_34', 'V149', 'V147',
+               'V228', 'V201', 'V2', 'V33', 'V60', 'V85', 'V243', 'V257', 'V260',
+               'V43', 'V169', 'id_15', 'V81', 'V216', 'id_32', 'V189', 'V272',
+               'V335', 'V11', 'V52',
+               'V25', 'V26', 'V140', 'V210', 'V289', 'V217', 'V159', 'V168']
+df.drop(remove_cols, axis=1, inplace=True)
 # %%
 # separate train and test
 train, test = df[df[target] != 'test'], df[df[target]
                                            == 'test'].drop(target, axis=1)
 del df
 
-
+# %%
+# print info
+print(train.info())
+print(test.info())
+# %%
+print(train.tail(5))
+# %%
+# save train & test
+train.to_csv(hlp.DATASETS_DEV_PATH + 'train8.csv', index=False)
+test.to_csv(hlp.DATASETS_DEV_PATH + 'test8.csv', index=False)
 # %%
 # create X, Y for train and check feature importances
 
@@ -176,7 +222,8 @@ print(hlp.fast_auc(y_pred_valid, y_test))
 
 # %%
 # plot feature importances
-feature_imp = pd.DataFrame(sorted(zip(model.feature_importances_,X.columns)), columns=['Value','Feature'])
+feature_imp = pd.DataFrame(sorted(
+    zip(model.feature_importances_, X.columns)), columns=['Value', 'Feature'])
 
 print(feature_imp.tail(50))
 # plt.figure(figsize=(20, 10))
@@ -185,11 +232,18 @@ print(feature_imp.tail(50))
 # plt.tight_layout()
 # plt.show()
 
+# %%
+# not usefull features
+# print(list(feature_imp.head(50)['Feature'].values))
 
 
-
-#%%
+# %%
 # results summary
-# 0.862 - raw dataset, transactionDT, transactionID not removed
-# 0.86 - raw dataset, transactionDT, transactionID removed
-# 0.859 - raw + nan count features
+# 1 0.862 - raw dataset, transactionDT, transactionID not removed
+# 2 0.86 - raw dataset, transactionDT, transactionID removed
+# 3 0.859 - raw + nan count features
+# 4 0.863 - raw + D_nulls
+# 5 0.8627 - 4 + datetime
+# 6 0.87 - 5 + card features
+# 7 0.873 - 6 + cardID
+# 8 0.878 - 7 + TransactionAmt to mean
