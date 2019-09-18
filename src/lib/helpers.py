@@ -7,6 +7,7 @@ import datetime as dt
 import numpy as np
 import scipy as ss
 import pandas as pd
+import requests
 
 import matplotlib.pyplot as plt
 import seaborn as sns
