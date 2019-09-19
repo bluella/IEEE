@@ -25,125 +25,129 @@ warnings.simplefilter('ignore')
 
 # %%
 # Load datasets
-datasets = [
-    f'{hlp.DATASETS_ORIGINAL_PATH}train_identity.csv',
-    f'{hlp.DATASETS_ORIGINAL_PATH}train_transaction.csv',
-    f'{hlp.DATASETS_ORIGINAL_PATH}test_identity.csv',
-    f'{hlp.DATASETS_ORIGINAL_PATH}test_transaction.csv',
-    f'{hlp.DATASETS_PRED_PATH}sample_submission.csv']
+# datasets = [
+#     f'{hlp.DATASETS_ORIGINAL_PATH}train_identity.csv',
+#     f'{hlp.DATASETS_ORIGINAL_PATH}train_transaction.csv',
+#     f'{hlp.DATASETS_ORIGINAL_PATH}test_identity.csv',
+#     f'{hlp.DATASETS_ORIGINAL_PATH}test_transaction.csv',
+#     f'{hlp.DATASETS_PRED_PATH}sample_submission.csv']
 
-with multiprocessing.Pool() as pool:
-    train_identity, \
-        train_transaction, \
-        test_identity, \
-        test_transaction, sub = pool.map(hlp.my_csv_read, datasets)
+# with multiprocessing.Pool() as pool:
+#     train_identity, \
+#         train_transaction, \
+#         test_identity, \
+#         test_transaction, sub = pool.map(hlp.my_csv_read, datasets)
 
+# Load preprocessed
+train = pd.read_csv(f'{hlp.DATASETS_DEV_PATH}train8.csv', index_col='index')
+test = pd.read_csv(f'{hlp.DATASETS_DEV_PATH}test8.csv', index_col='index')
 
 # %%
 # Merging transactions and identity
-train = pd.merge(train_transaction, train_identity,
-                 on='TransactionID', how='left')
-test = pd.merge(test_transaction, test_identity,
-                on='TransactionID', how='left')
+# train = pd.merge(train_transaction, train_identity,
+#                  on='TransactionID', how='left')
+# test = pd.merge(test_transaction, test_identity,
+#                 on='TransactionID', how='left')
 
 # %%
-print(train.shape)
-print(test.shape)
+# print(train.shape)
+# print(test.shape)
 # %%
 # Merging test and train
 target = 'isFraud'
-test[target] = 'test'
-df = pd.concat([train, test], axis=0, sort=False)
-df = df.reset_index()
+# test[target] = 'test'
+# df = pd.concat([train, test], axis=0, sort=False)
+# df = df.reset_index()
 
 # %%
 # delete heavy parts
-del train_identity, train_transaction, test_identity, test_transaction, train, test
+# del train_identity, train_transaction, test_identity, test_transaction, train, test
 
 
 # %%
 # add nans count as feature
 
-D_columns = []
-for column in df.columns:
-    if 'D' in column:
-        D_columns.append(column)
+# D_columns = []
+# for column in df.columns:
+#     if 'D' in column:
+#         D_columns.append(column)
 
-df['D_nulls'] = df[D_columns].isnull().sum(axis=1)
+# df['D_nulls'] = df[D_columns].isnull().sum(axis=1)
 # %%
 # Lets add datetime features
-df = hlp.add_datetime_info(df)
+# df = hlp.add_datetime_info(df)
 
 # %%
 # card features
-column_card_numbers = ['card1', 'card2', 'card3', 'card5']
-for column in column_card_numbers:
-    df[column] = df[column].map(str).fillna('NNNN').map(hlp.correct_card_id)
-    for number in [1, 2, 3, 4]:
-        df[column + '_' + str(number)] = df[column].str[number-1:number]
+# column_card_numbers = ['card1', 'card2', 'card3', 'card5']
+# for column in column_card_numbers:
+#     df[column] = df[column].map(str).fillna('NNNN').map(hlp.correct_card_id)
+#     for number in [1, 2, 3, 4]:
+#         df[column + '_' + str(number)] = df[column].str[number-1:number]
 # %%
 # add card number
-df = hlp.add_card_id(df)
+# df = hlp.add_card_id(df)
 
 # %%
 # means
-df['TransactionAmt_to_mean_card_id'] = df['TransactionAmt'] - \
-    df.groupby(['Card_ID'])['TransactionAmt'].transform('mean')
+# df['TransactionAmt_to_mean_card_id'] = df['TransactionAmt'] - \
+#     df.groupby(['Card_ID'])['TransactionAmt'].transform('mean')
 
-df['TransactionAmt_to_std_card_id'] = df['TransactionAmt_to_mean_card_id'] / \
-    df.groupby(['Card_ID'])['TransactionAmt'].transform('std')
+# df['TransactionAmt_to_std_card_id'] = df['TransactionAmt_to_mean_card_id'] / \
+#     df.groupby(['Card_ID'])['TransactionAmt'].transform('std')
 
-df['TransactionAmt_to_mean_card1'] = df['TransactionAmt'] / \
-    df.groupby(['card1'])['TransactionAmt'].transform('mean')
-df['TransactionAmt_to_mean_card4'] = df['TransactionAmt'] / \
-    df.groupby(['card4'])['TransactionAmt'].transform('mean')
-df['TransactionAmt_to_std_card1'] = df['TransactionAmt'] / \
-    df.groupby(['card1'])['TransactionAmt'].transform('std')
-df['TransactionAmt_to_std_card4'] = df['TransactionAmt'] / \
-    df.groupby(['card4'])['TransactionAmt'].transform('std')
+# df['TransactionAmt_to_mean_card1'] = df['TransactionAmt'] / \
+#     df.groupby(['card1'])['TransactionAmt'].transform('mean')
+# df['TransactionAmt_to_mean_card4'] = df['TransactionAmt'] / \
+#     df.groupby(['card4'])['TransactionAmt'].transform('mean')
+# df['TransactionAmt_to_std_card1'] = df['TransactionAmt'] / \
+#     df.groupby(['card1'])['TransactionAmt'].transform('std')
+# df['TransactionAmt_to_std_card4'] = df['TransactionAmt'] / \
+#     df.groupby(['card4'])['TransactionAmt'].transform('std')
 
 
 # %%
 # drop columns with nans or correlation
-keep_cols = [target, 'TransactionDT', 'TransactionID',
-             'Card_ID', '_Hours', '_Days', '_Weekdays']
-df = hlp.drop_columns_nan_null(df, df[df[target] != 'test'],
-                               keep_cols,
-                               drop_proportion=0.9)
-df = hlp.drop_columns_corr(df, df[df[target] != 'test'],
-                           keep_cols,
-                           drop_threshold=0.98)
+# keep_cols = [target, 'TransactionDT', 'TransactionID',
+#              'Card_ID', '_Hours', '_Days', '_Weekdays']
+# df = hlp.drop_columns_nan_null(df, df[df[target] != 'test'],
+#                                keep_cols,
+#                                drop_proportion=0.9)
+# df = hlp.drop_columns_corr(df, df[df[target] != 'test'],
+#                            keep_cols,
+#                            drop_threshold=0.98)
 
 # %%
 # categorical columns into numbers
-numerics = ['int16', 'int32', 'int64', 'float16', 'float32', 'float64']
-df_num = df.select_dtypes(include=numerics)
-cat_columns = [col for col in df.columns if col not in df_num.columns]
-if target in cat_columns:
-    cat_columns.remove(target)
+# numerics = ['int16', 'int32', 'int64', 'float16', 'float32', 'float64']
+# df_num = df.select_dtypes(include=numerics)
+# cat_columns = [col for col in df.columns if col not in df_num.columns]
+# if target in cat_columns:
+#     cat_columns.remove(target)
 
-for col in cat_columns:
-    if col in df.columns:
-        le = LabelEncoder()
-        le.fit(list(df[col].astype(str).values))
-        df[col] = le.transform(list(df[col].astype(str).values))
+# for col in cat_columns:
+#     if col in df.columns:
+#         le = LabelEncoder()
+#         le.fit(list(df[col].astype(str).values))
+#         df[col] = le.transform(list(df[col].astype(str).values))
         # test[col] = le.transform(list(test[col].astype(str).values))
 
 # %%
+# WAS IT COMMENTED BEFORE - CHECK!
 # remove total shit
-remove_cols = ['id_10', 'id_04', 'V144', 'V8', 'id_12',
-               'V238', 'V184', 'V224', 'V239', 'V262', 'V80', 'V64', 'V200',
-               'V42', 'V51', 'V94', 'V34', 'V39', 'V6', 'id_34', 'V149', 'V147',
-               'V228', 'V201', 'V2', 'V33', 'V60', 'V85', 'V243', 'V257', 'V260',
-               'V43', 'V169', 'id_15', 'V81', 'V216', 'id_32', 'V189', 'V272',
-               'V335', 'V11', 'V52',
-               'V25', 'V26', 'V140', 'V210', 'V289', 'V217', 'V159', 'V168']
-df.drop(remove_cols, axis=1, inplace=True)
+# remove_cols = ['id_10', 'id_04', 'V144', 'V8', 'id_12',
+#                'V238', 'V184', 'V224', 'V239', 'V262', 'V80', 'V64', 'V200',
+#                'V42', 'V51', 'V94', 'V34', 'V39', 'V6', 'id_34', 'V149', 'V147',
+#                'V228', 'V201', 'V2', 'V33', 'V60', 'V85', 'V243', 'V257', 'V260',
+#                'V43', 'V169', 'id_15', 'V81', 'V216', 'id_32', 'V189', 'V272',
+#                'V335', 'V11', 'V52',
+#                'V25', 'V26', 'V140', 'V210', 'V289', 'V217', 'V159', 'V168']
+# df.drop(remove_cols, axis=1, inplace=True)
 # %%
 # separate train and test
-train, test = df[df[target] != 'test'], df[df[target]
-                                           == 'test'].drop(target, axis=1)
-del df
+# train, test = df[df[target] != 'test'], df[df[target]
+#                                            == 'test'].drop(target, axis=1)
+# del df
 
 # %%
 # print info
@@ -151,10 +155,15 @@ print(train.info())
 print(test.info())
 # %%
 print(train.tail(5))
+
+# %%
+# try new features
+train['email_pair'] = train['P_emaildomain'] + ' ' + train['R_emaildomain']
+test['email_pair'] = test['P_emaildomain'] + ' ' + test['R_emaildomain']
 # %%
 # save train & test
-train.to_csv(hlp.DATASETS_DEV_PATH + 'train8.csv', index=False)
-test.to_csv(hlp.DATASETS_DEV_PATH + 'test8.csv', index=False)
+# train.to_csv(hlp.DATASETS_DEV_PATH + 'train8.csv', index=False)
+# test.to_csv(hlp.DATASETS_DEV_PATH + 'test8.csv', index=False)
 # %%
 # create X, Y for train and check feature importances
 
