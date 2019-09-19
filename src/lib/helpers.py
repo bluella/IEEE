@@ -217,7 +217,7 @@ def add_card_id(df):
     return df
 
 
-def drop_columns_nan_null(df_drop, df_look,
+def drop_columns_nan_null(df_look,
                           keep_cols,
                           drop_proportion=0.9):
     """ drop columns with lots of nans or without values """
@@ -240,13 +240,17 @@ def drop_columns_nan_null(df_drop, df_look,
     for keep_col in keep_cols:
         if keep_col in cols_to_drop:
             cols_to_drop.remove(keep_col)
-    print(len(cols_to_drop), ' columns were removed because of nulls and NaNs')
-    print(f'dropped ones: {cols_to_drop}')
-    df_drop.drop(cols_to_drop, axis=1, inplace=True)
 
-    return df_drop
+    # for col in cols_to_drop:
+    #     if col in df_drop:
+    #         df_drop.drop([col], axis=1, inplace=True)
 
-def drop_columns_corr(df_drop, df_look,
+    # print(len(cols_to_drop), ' columns were removed because of nulls and NaNs')
+    # print(f'dropped ones: {cols_to_drop}')
+
+    return cols_to_drop
+
+def drop_columns_corr(df_look,
                       keep_cols,
                       drop_threshold=0.98):
     """drop columns with high correlation
@@ -265,11 +269,16 @@ def drop_columns_corr(df_drop, df_look,
     for keep_col in keep_cols:
         if keep_col in cols_to_drop:
             cols_to_drop.remove(keep_col)
-    print(len(cols_to_drop), ' columns were removed because of high corr')
-    print(f'dropped ones: {cols_to_drop}')
-    df_drop.drop(cols_to_drop, axis=1, inplace=True)
 
-    return df_drop
+    # df_drop.drop(cols_to_drop, axis=1, inplace=True)
+    # for col in cols_to_drop:
+    #     if col in df_drop:
+    #         df_drop.drop([col], axis=1, inplace=True)
+
+    # print(len(cols_to_drop), ' columns were removed because of high corr')
+    # print(f'dropped ones: {cols_to_drop}')
+
+    return cols_to_drop
 
 ###################################################################################################
 # training model

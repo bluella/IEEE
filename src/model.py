@@ -24,8 +24,8 @@ from src.lib import helpers as hlp
 # %%
 # load prepared data
 target = 'isFraud'
-train = pd.read_csv(f'{hlp.DATASETS_DEV_PATH}train8.csv', index_col='index')
-test = pd.read_csv(f'{hlp.DATASETS_DEV_PATH}test8.csv', index_col='index')
+train = pd.read_csv(f'{hlp.DATASETS_DEV_PATH}train9.csv', index_col='index')
+test = pd.read_csv(f'{hlp.DATASETS_DEV_PATH}test9.csv', index_col='index')
 sub = pd.read_csv(f'{hlp.DATASETS_PRED_PATH}sample_submission.csv')
 
 # %%
@@ -36,21 +36,21 @@ print(test.head(5))
 
 # EXPERIMENT, DELETE!!!!!!!!!!!!!!!!!!!!
 ###############################################
-X = train.sort_values('TransactionDT').drop(
-    [target], axis=1)
-Y = train.sort_values('TransactionDT')[target].astype(float)
-X_test = test.sort_values('TransactionDT')
-del train
-test = test[["TransactionDT", 'TransactionID']]
-###############################################
-
 # X = train.sort_values('TransactionDT').drop(
-#     [target, 'TransactionDT', 'TransactionID'], axis=1)
+#     [target], axis=1)
 # Y = train.sort_values('TransactionDT')[target].astype(float)
-# X_test = test.sort_values('TransactionDT').drop(
-#     ['TransactionDT', 'TransactionID'], axis=1)
+# X_test = test.sort_values('TransactionDT')
 # del train
 # test = test[["TransactionDT", 'TransactionID']]
+###############################################
+
+X = train.sort_values('TransactionDT').drop(
+    [target, 'TransactionDT', 'TransactionID'], axis=1)
+Y = train.sort_values('TransactionDT')[target].astype(float)
+X_test = test.sort_values('TransactionDT').drop(
+    ['TransactionDT', 'TransactionID'], axis=1)
+del train
+test = test[["TransactionDT", 'TransactionID']]
 
 # %%
 # check
@@ -141,7 +141,7 @@ result_dict_lgb = hlp.train_model_classification(X=X,
                                                  params=params1, folds=folds, model_type='lgb',
                                                  eval_metric='auc', plot_feature_importance=True,
                                                  verbose=500, early_stopping_rounds=200,
-                                                 n_estimators=6000, averaging='usual', n_jobs=7)
+                                                 n_estimators=1500, averaging='usual', n_jobs=7)
 
 
 # %%
